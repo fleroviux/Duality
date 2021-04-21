@@ -41,9 +41,9 @@ void ARM::Run(int instructions) {
     if (IRQLine()) SignalIRQ();
 
     if (state.cpsr.f.thumb) {
-      u32 key = state.r15 | 1;
-
       state.r15 &= ~1;
+
+      u32 key = state.r15 | 1;
 
       if (auto match = block_cache.find(key); match != block_cache.end()) {
         match->second.fn();
@@ -61,9 +61,7 @@ void ARM::Run(int instructions) {
           auto opcode = ReadHalfCode(ip);
           auto opcode_type = GetThumbInstructionType(opcode);
 
-          auto address = reinterpret_cast<const void*>(s_opcode_lut_16[opcode >> 5]);
-
-          code->mov(rax, u64(address));
+          code->mov(rax, u64((const void*)s_opcode_lut_16[opcode >> 5]));
           code->mov(rcx, u64(this));
           code->mov(edx, opcode);
           code->call(rax);
@@ -94,26 +92,93 @@ void ARM::Run(int instructions) {
         instructions -= basic_block.instructions;
       }
     } else {
-      auto instruction = opcode[0];
-
       state.r15 &= ~3;
 
-      opcode[0] = opcode[1];
-      opcode[1] = ReadWordCode(state.r15);
-      auto condition = static_cast<Condition>(instruction >> 28);
+      u32 key = state.r15;
 
-      if (CheckCondition(condition)) {
-        int hash = ((instruction >> 16) & 0xFF0) |
-                   ((instruction >>  4) & 0x00F);
-        if (condition == COND_NV) {
-          hash |= 4096;
+      if (auto match = block_cache.find(key); match != block_cache.end()) {
+        auto const& basic_block = match->second;
+        // TODO: with this approach we might have to stop the basic block
+        // if CPSR changes during the block and the block is conditional.
+        if (CheckCondition(basic_block.condition)) {
+          basic_block.fn();
+        } else {
+          state.r15 += basic_block.instructions * sizeof(u32);
         }
-        (this->*s_opcode_lut_32[hash])(instruction);
-
-        if (IsWaitingForIRQ()) return;
+        instructions -= basic_block.instructions;
       } else {
-        state.r15 += 4;
+        auto basic_block = BasicBlock{};
+        auto code = new Xbyak::CodeGenerator{}; // leak goes brrr
+        auto ip = state.r15 - 8;
+
+        code->sub(rsp, 0x28);
+
+        for (int i = 0; i < 1; i++) {
+          auto opcode = ReadWordCode(ip);
+          auto condition = static_cast<Condition>(opcode >> 28);
+          auto opcode_type = GetThumbInstructionType(opcode);
+
+          int hash = ((opcode >> 16) & 0xFF0) |
+                     ((opcode >>  4) & 0x00F);
+
+          if (condition == COND_NV) {
+            condition = COND_AL;
+            hash |= 4096;
+          }
+
+          if (i == 0) {
+            basic_block.condition = condition;
+          } else if (condition != basic_block.condition) {
+            break;
+          }
+
+          code->mov(rax, u64((const void*)s_opcode_lut_32[hash]));
+          code->mov(rcx, u64(this));
+          code->mov(edx, opcode);
+          code->call(rax);
+
+          basic_block.instructions++;
+
+          // TODO: detect branches and abort the basic block.
+          // Also abort the branch if CPSR flags change and the block conditional :methharold:
+
+          ip += 4;
+        }
+
+        code->add(rsp, 0x28);
+        code->ret();
+        basic_block.fn = code->getCode<void (*)()>();
+        block_cache[key] = basic_block;
+
+        if (CheckCondition(basic_block.condition)) {
+          basic_block.fn();
+        } else {
+          state.r15 += basic_block.instructions * sizeof(u32);
+        }
+
+        instructions -= basic_block.instructions;
       }
+
+      // auto instruction = opcode[0];
+
+      // state.r15 &= ~3;
+
+      // opcode[0] = opcode[1];
+      // opcode[1] = ReadWordCode(state.r15);
+      // auto condition = static_cast<Condition>(instruction >> 28);
+
+      // if (CheckCondition(condition)) {
+      //   int hash = ((instruction >> 16) & 0xFF0) |
+      //              ((instruction >>  4) & 0x00F);
+      //   if (condition == COND_NV) {
+      //     hash |= 4096;
+      //   }
+      //   (this->*s_opcode_lut_32[hash])(instruction);
+
+      //   if (IsWaitingForIRQ()) return;
+      // } else {
+      //   state.r15 += 4;
+      // }
     }
 
     instruction_overshoot = instructions;

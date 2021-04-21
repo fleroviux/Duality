@@ -72,6 +72,7 @@ private:
   struct BasicBlock {
     void (*fn)();
     int instructions = 0;
+    Condition condition = COND_AL;
   };
 
   std::unordered_map<u32, BasicBlock> block_cache;
