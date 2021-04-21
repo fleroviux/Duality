@@ -27,6 +27,9 @@ CP15::CP15(arm::ARM* core, ARM9MemoryBus* bus)
   RegisterHandler(7, 8, 2, &CP15::WriteWaitForIRQ);
   RegisterHandler(9, 1, 0, &CP15::WriteDTCMConfig);
   RegisterHandler(9, 1, 1, &CP15::WriteITCMConfig);
+  RegisterHandler(7, 5, 0, &CP15::InvalidateCodeCache);
+  RegisterHandler(7, 5, 1, &CP15::InvalidateCodeCacheLineVA);
+  RegisterHandler(7, 5, 2, &CP15::InvalidateCodeCacheLineSI);
 }
 
 void CP15::Reset() {
@@ -151,6 +154,20 @@ void CP15::WriteITCMConfig(int cn, int cm, int opcode, u32 value) {
   bus->SetITCM(itcm_config);
 
   LOG_INFO("CP15: ITCM mapped @ 0x{0:08X} - 0x{1:08X}", itcm_config.base, itcm_config.limit);
+}
+
+void CP15::InvalidateCodeCache(int cn, int cm, int opcode, u32 value) {
+  core->InvalidateCodeCache();
+}
+
+void CP15::InvalidateCodeCacheLineVA(int cn, int cm, int opcode, u32 value) {
+  // TODO: only invalidate the relevant address range.
+  core->InvalidateCodeCache();
+}
+
+void CP15::InvalidateCodeCacheLineSI(int cn, int cm, int opcode, u32 value) {
+  // TODO: only invalidate the relevant address range.
+  core->InvalidateCodeCache();
 }
 
 } // namespace Duality::Core

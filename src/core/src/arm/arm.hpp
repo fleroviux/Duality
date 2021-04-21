@@ -6,6 +6,7 @@
 
 #include <array>
 #include <util/log.hpp>
+#include <unordered_map>
 
 #include "coprocessor.hpp"
 #include "state.hpp"
@@ -37,6 +38,7 @@ struct ARM {
   auto IRQLine() -> bool& { return irq_line; }
   void WaitForIRQ() { wait_for_irq = true; }
   bool IsWaitingForIRQ() { return wait_for_irq; }
+  void InvalidateCodeCache();
 
   // TODO: implement a cleaner interface to modify the execution state.
   auto GetState() -> State& { return state; }
@@ -66,6 +68,14 @@ private:
   #include "handlers/handler16.inl"
   #include "handlers/handler32.inl"
   #include "handlers/memory.inl"
+
+  struct BasicBlock {
+    void (*fn)();
+    int instructions = 0;
+  };
+
+  std::unordered_map<u32, BasicBlock> block_cache;
+  int instruction_overshoot = 0;
 
   Architecture arch;
   u32 exception_base = 0;

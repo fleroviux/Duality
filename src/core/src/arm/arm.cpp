@@ -3,8 +3,10 @@
  */
 
 #include <stdexcept>
+#include <xbyak/xbyak.h>
 
 #include "arm.hpp"
+#include "tablegen/decoder.hpp"
 
 namespace Duality::Core::arm {
 
@@ -22,29 +24,84 @@ void ARM::Reset() {
   for (auto coprocessor : coprocessors)
     if (coprocessor != nullptr)
       coprocessor->Reset();
+
+  block_cache = {};
 }
 
 void ARM::Run(int instructions) {
+  using namespace Xbyak::util;
+
   if (IsWaitingForIRQ() && !IRQLine()) {
     return;
   }
 
+  instructions += instruction_overshoot;
+
   while (instructions-- > 0) {
     if (IRQLine()) SignalIRQ();
 
-    auto instruction = opcode[0];
     if (state.cpsr.f.thumb) {
+      u32 key = state.r15 | 1;
+
       state.r15 &= ~1;
 
-      opcode[0] = opcode[1];
-      opcode[1] = ReadHalfCode(state.r15);
-      (this->*s_opcode_lut_16[instruction >> 5])(instruction);
+      if (auto match = block_cache.find(key); match != block_cache.end()) {
+        match->second.fn();
+        instructions -= match->second.instructions;
+      } else {
+        auto basic_block = BasicBlock{};
+        auto code = new Xbyak::CodeGenerator{}; // leak goes brrr
+        auto ip = state.r15 - 4;
+
+        code->sub(rsp, 0x28);
+
+        // NOTE: using 'instructions' number of instructions seem to cause a weird bug
+        // in at least ARMWrestler and Pokémon Diamond.
+        for (int i = 0; i < 32; i++) {
+          auto opcode = ReadHalfCode(ip);
+          auto opcode_type = GetThumbInstructionType(opcode);
+
+          auto address = reinterpret_cast<const void*>(s_opcode_lut_16[opcode >> 5]);
+
+          code->mov(rax, u64(address));
+          code->mov(rcx, u64(this));
+          code->mov(edx, opcode);
+          code->call(rax);
+
+          basic_block.instructions++;
+
+          // Any thumb instruction that can potentially branch will break the basic block for now.
+          if (opcode_type == ThumbInstrType::HighRegisterOps ||
+              opcode_type == ThumbInstrType::PushPop ||
+              opcode_type == ThumbInstrType::SoftwareInterrupt ||
+              opcode_type == ThumbInstrType::ConditionalBranch ||
+              opcode_type == ThumbInstrType::UnconditionalBranch ||
+              opcode_type == ThumbInstrType::LongBranchLinkExchangeSuffix ||
+              opcode_type == ThumbInstrType::LongBranchLinkPrefix ||
+              opcode_type == ThumbInstrType::LongBranchLinkSuffix) {
+            break;
+          }
+
+          ip += 2;
+        }
+
+        code->add(rsp, 0x28);
+        code->ret();
+        basic_block.fn = code->getCode<void (*)()>();
+        block_cache[key] = basic_block;
+
+        basic_block.fn();
+        instructions -= basic_block.instructions;
+      }
     } else {
+      auto instruction = opcode[0];
+
       state.r15 &= ~3;
 
       opcode[0] = opcode[1];
       opcode[1] = ReadWordCode(state.r15);
       auto condition = static_cast<Condition>(instruction >> 28);
+
       if (CheckCondition(condition)) {
         int hash = ((instruction >> 16) & 0xFF0) |
                    ((instruction >>  4) & 0x00F);
@@ -58,7 +115,13 @@ void ARM::Run(int instructions) {
         state.r15 += 4;
       }
     }
+
+    instruction_overshoot = instructions;
   }
+}
+
+void ARM::InvalidateCodeCache() {
+  block_cache = {};
 }
 
 void ARM::AttachCoprocessor(uint id, Coprocessor* coprocessor) {

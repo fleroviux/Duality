@@ -90,11 +90,8 @@ set(HEADERS_PUBLIC
   include/core/core.hpp)
 
 add_library(duality-core STATIC ${SOURCES} ${HEADERS} ${HEADERS_PUBLIC})
-target_link_libraries(duality-core duality-util fmt)
+# Why are we linking fmt into the core again?
+target_link_libraries(duality-core duality-util xbyak::xbyak fmt)
 target_include_directories(duality-core PRIVATE src)
 target_include_directories(duality-core PUBLIC include)
-
-## TODO: this is not optimal... move SDL out of the core.
-#target_include_directories(core PUBLIC ${SDL2_INCLUDE_DIR})
-#target_link_libraries(core ${SDL2_LIBRARY})
 

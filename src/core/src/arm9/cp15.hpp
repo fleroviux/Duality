@@ -52,6 +52,9 @@ private:
   auto ReadITCMConfig(int cn, int cm, int opcode) -> u32;
   void WriteDTCMConfig(int cn, int cm, int opcode, u32 value);
   void WriteITCMConfig(int cn, int cm, int opcode, u32 value);
+  void InvalidateCodeCache(int cn, int cm, int opcode, u32 value);
+  void InvalidateCodeCacheLineVA(int cn, int cm, int opcode, u32 value);
+  void InvalidateCodeCacheLineSI(int cn, int cm, int opcode, u32 value);
 
   u32 reg_control;
   u32 reg_dtcm;
