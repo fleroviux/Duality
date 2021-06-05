@@ -176,6 +176,8 @@ auto GPU::SampleTexture(TextureParams const& params, Vector2<Fixed12x4> const& u
 }
 
 void GPU::Render() {
+  return;
+  
   for (uint i = 0; i < 256 * 192; i++) {
     draw_buffer[i] = Color4{0, 0, 0, 0};
     depth_buffer[i] = 0xFFFFFF;

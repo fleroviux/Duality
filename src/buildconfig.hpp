@@ -5,7 +5,7 @@
 #pragma once
 
 /// Enables log messages and assertions.
-static constexpr bool gEnableLogging = true;
+static constexpr bool gEnableLogging = false;
 
 /// Enables the fast memory optimization.
 /// Can somewhat increases framerates.

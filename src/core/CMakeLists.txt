@@ -90,7 +90,7 @@ set(HEADERS_PUBLIC
   include/core/core.hpp)
 
 add_library(duality-core STATIC ${SOURCES} ${HEADERS} ${HEADERS_PUBLIC})
-target_link_libraries(duality-core duality-util fmt)
+target_link_libraries(duality-core duality-util fmt lunatic)
 target_include_directories(duality-core PRIVATE src)
 target_include_directories(duality-core PUBLIC include)
 
