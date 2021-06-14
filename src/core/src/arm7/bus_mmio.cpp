@@ -78,6 +78,8 @@ enum Registers {
   REG_SOUNDCHAN_HI = 0x0400'04FF
 };
 
+static u8 bb_regs[0x69] {0};
+
 auto ARM7MemoryBus::ReadByteIO(u32 address) -> u8 {
   switch (address) {
     // PPU engine A
@@ -337,7 +339,9 @@ auto ARM7MemoryBus::ReadByteIO(u32 address) -> u8 {
       return apu.Read((address >> 4) & 15, address & 15);
 
     default:
-      LOG_WARN("ARM7: MMIO: unhandled read from 0x{0:08X}", address);
+      //LOG_WARN("ARM7: MMIO: unhandled read from 0x{0:08X} r15=0x{1:08X}", address, r15);
+      
+      return derp[address & 0xFFFFFF];
   }
 
   return 0;
@@ -710,7 +714,23 @@ void ARM7MemoryBus::WriteByteIO(u32 address,  u8 value) {
       return apu.Write((address >> 4) & 15, address & 15, value);
 
     default:
-      LOG_WARN("ARM7: MMIO: unhandled write to 0x{0:08X} = 0x{1:02X}", address, value);
+      
+      // stub BB read/write
+      if (address == 0x04808159) {
+        auto direction = value >> 4;
+        auto index = derp[0x808158] & 0xFF;
+        
+        if (direction == 5) {
+          bb_regs[index] = derp[0x80815A];
+        }
+
+        if (direction == 6) {
+          derp[0x80815C] = bb_regs[index];
+        }
+      }
+
+      derp[address & 0xFFFFFF] = value;
+      //LOG_WARN("ARM7: MMIO: unhandled write to 0x{0:08X} = 0x{1:02X}", address, value);
   }
 }
 

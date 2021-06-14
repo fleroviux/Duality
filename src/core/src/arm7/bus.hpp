@@ -5,6 +5,7 @@
 #pragma once
 
 #include <util/integer.hpp>
+#include <fstream>
 
 #include "arm/memory.hpp"
 #include "interconnect.hpp"
@@ -26,6 +27,8 @@ struct ARM7MemoryBus final : arm::MemoryBase {
   void WriteWord(u32 address, u32 value, Bus bus) override;
   void WriteQuad(u32 address, u64 value, Bus bus) override;
 
+  std::uint32_t r15 = 0;
+
 private:
   void UpdateMemoryMap(u32 address_lo, u64 address_hi);
 
@@ -46,6 +49,7 @@ private:
   /// ARM7 internal memory
   u8 bios[0x4000] {0};
   u8 iwram[0x10000];
+  u8 derp[0x1000000];
 
   /// ARM7 and ARM9 shared memory
   u8* ewram;

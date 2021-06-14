@@ -86,7 +86,7 @@ void SPI::SPIDATA::WriteByte(u8 value) {
   auto device = spi.devices[spi.spicnt.device];
 
   if (device == nullptr) {
-    LOG_WARN("SPI: attempted to access unimplemented or reserved device.");
+    //LOG_WARN("SPI: attempted to access unimplemented or reserved device.");
     return;
   }
 

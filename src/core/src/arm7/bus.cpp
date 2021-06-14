@@ -35,6 +35,8 @@ ARM7MemoryBus::ARM7MemoryBus(Interconnect* interconnect)
   memset(iwram, 0, sizeof(iwram));
   halted = false;
 
+  memset(derp, 0, sizeof(derp));
+
   if constexpr (gEnableFastMemory) {
     pagetable = std::make_unique<std::array<u8*, 1048576>>();
     UpdateMemoryMap(0, 0x100000000ULL);
